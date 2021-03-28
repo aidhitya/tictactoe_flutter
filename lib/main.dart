@@ -1,113 +1,153 @@
 import 'package:flutter/material.dart';
+import 'package:tictactoe/games/box_button.dart';
+import 'package:tictactoe/games/tile_player.dart';
 
 void main() {
   runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+class MyApp extends StatefulWidget {
+  MyApp({Key key}) : super(key: key);
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final dialogKey = GlobalKey<NavigatorState>();
+  var _boardState = List.filled(9, TileState.EMPTY);
+  var _currentTurn = TileState.CROSS;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+      navigatorKey: dialogKey,
+      home: Scaffold(
+        body: Center(
+          child: Stack(
+            children: [
+              Stack(
+                children: [
+                  Image.asset('assets/images/board.png'),
+                  _boardTile(),
+                ],
+              )
+            ],
+          ),
+        ),
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
-}
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  Widget _boardTile() {
+    return Builder(builder: (context) {
+      final boardDimension = MediaQuery.of(context).size.width;
+      final boxDimension = boardDimension / 3;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+      return Container(
+        width: boardDimension,
+        height: boardDimension,
+        child: Column(
+          children: chunk(_boardState, 3).asMap().entries.map((i) {
+            final bigChunkKey = i.key;
+            final bigChunkValue = i.value;
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
+            return Row(
+              children: bigChunkValue.asMap().entries.map((e) {
+                final smallChunkKey = e.key;
+                final tileState = e.value;
 
-  final String title;
+                final realChunk = (bigChunkKey * 3) + smallChunkKey;
 
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+                return BoxButton(
+                  dimension: boxDimension,
+                  tileState: tileState,
+                  onPressed: () => _updateTheTile(realChunk),
+                );
+              }).toList(),
+            );
+          }).toList(),
+        ),
+      );
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+  void _updateTheTile(int indexTile) {
+    if (_boardState[indexTile] == TileState.EMPTY) {
+      setState(() {
+        _boardState[indexTile] = _currentTurn;
+
+        _currentTurn = _currentTurn == TileState.CROSS
+            ? TileState.CIRCLE
+            : TileState.CROSS;
+      });
+
+      final winner = _findWinner();
+      if (_findWinner() != null) {
+        print('$winner');
+        _alertWinnerModal(winner);
+      }
+    }
+  }
+
+  TileState _findWinner() {
+    TileState Function(int, int, int) winnerForMatch = (a, b, c) {
+      if (_boardState[a] != TileState.EMPTY) {
+        if ((_boardState[a] == _boardState[b]) &&
+            (_boardState[b] == _boardState[c])) {
+          return _boardState[a];
+        }
+      }
+      return null;
+    };
+
+    final winnerChecks = [
+      winnerForMatch(0, 4, 8),
+      winnerForMatch(2, 4, 6),
+      winnerForMatch(0, 1, 2),
+      winnerForMatch(3, 4, 5),
+      winnerForMatch(6, 7, 8),
+      winnerForMatch(0, 3, 6),
+      winnerForMatch(1, 4, 7),
+      winnerForMatch(2, 5, 8),
+    ];
+
+    final TileState winner = winnerChecks.firstWhere(
+      (TileState element) => element != null,
+      orElse: () => null,
     );
+
+    return winner;
+  }
+
+  void _alertWinnerModal(TileState tileState) {
+    final context = dialogKey.currentState.overlay.context;
+    showDialog(
+        context: context,
+        builder: (_) {
+          return AlertDialog(
+            title: tileState == TileState.CROSS
+                ? Text('CROSS is The Winner')
+                : Text('CIRCLE is The Winnder'),
+            content: tileState == TileState.CROSS
+                ? Image.asset('assets/images/x.png')
+                : Image.asset('assets/images/o.png'),
+            actions: [
+              TextButton(
+                  onPressed: () {
+                    _newGame();
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('New Game'))
+            ],
+          );
+        });
+  }
+
+  void _newGame() {
+    setState(() {
+      _boardState = List.filled(9, TileState.EMPTY);
+      _currentTurn = TileState.CROSS;
+    });
   }
 }
